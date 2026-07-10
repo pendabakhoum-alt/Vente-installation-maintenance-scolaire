@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nos Services - Vente & Maintenance Scolaire</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- ===== EN-TÊTE ===== -->
+        <header class="header">
+            <h1>🔧 <span>Services</span> Scolaires</h1>
+            <nav class="header-nav">
+                <a href="index.html">🏠 Accueil</a>
+                <a href="services.html" class="active">🔧 Services</a>
+                <a href="#">📦 Produits</a>
+                <a href="#">📞 Contact</a>
+                <div class="cart-badge">
+                    🛒 Panier
+                    <span id="cartCount">0</span>
+                </div>
+            </nav>
+        </header>
+
+        <!-- ===== BANNIÈRE PROMO ===== -->
+        <div class="promo-banner">
+            <div>
+                <h2>🎓 Offre Spéciale Étudiants</h2>
+                <p>-10% sur tout service avec le code <strong>ETUDIANT2026</strong></p>
+            </div>
+            <div class="code">⏱️ Offre valable jusqu'au 31/08/2026</div>
+        </div>
+
+        <!-- ===== GRILLE DES SERVICES ===== -->
+        <section class="services-grid" id="servicesGrid">
+            <!-- Carte 1 : Installation -->
+            <div class="service-card" data-id="install" data-name="Installation Logiciels" data-price="29.90">
+                <span class="badge">⭐ Populaire</span>
+                <div class="icon">💻</div>
+                <h3>Installation Logiciels</h3>
+                <div class="price">29,90 € <small>forfait</small></div>
+                <p class="desc">
+                    Installation complète de votre suite bureautique, IDE, antivirus et drivers.
+                </p>
+                <ul>
+                    <li>Suite Office / LibreOffice</li>
+                    <li>Environnement de développement (VS Code, Python, etc.)</li>
+                    <li>Antivirus + pare-feu</li>
+                </ul>
+                <button class="btn" data-action="add">➕ Ajouter</button>
+            </div>
+
+            <!-- Carte 2 : Maintenance Express -->
+            <div class="service-card" data-id="maintenance" data-name="Maintenance Express" data-price="12.90">
+                <div class="icon">⚡</div>
+                <h3>Maintenance Express</h3>
+                <div class="price">12,90 € <small>/ mois</small></div>
+                <p class="desc">
+                    Intervention rapide en cas de panne, nettoyage, optimisation et mise à jour.
+                </p>
+                <ul>
+                    <li>Assistance à distance (chat / téléphone)</li>
+                    <li>Mises à jour automatiques</li>
+                    <li>Nettoyage du système</li>
+                </ul>
+                <button class="btn" data-action="add">➕ Ajouter</button>
+            </div>
+
+            <!-- Carte 3 : Pack Gold -->
+            <div class="service-card" data-id="packgold" data-name="Pack Gold" data-price="149.00">
+                <span class="badge gold">🌟 Meilleure Offre</span>
+                <div class="icon">⭐</div>
+                <h3>Pack Gold</h3>
+                <div class="price">149,00 € <small>/ an</small></div>
+                <p class="desc">
+                    Le combo gagnant : installation complète + maintenance illimitée pendant 1 an.
+                </p>
+                <ul>
+                    <li>Tout ce qu'inclut Installation</li>
+                    <li>Maintenance illimitée (12 mois)</li>
+                    <li>Priorité au support</li>
+                </ul>
+                <button class="btn btn-success" data-action="add">⭐ Ajouter</button>
+            </div>
+
+            <!-- Carte 4 : Support Premium -->
+            <div class="service-card" data-id="support" data-name="Support Premium" data-price="19.90">
+                <div class="icon">🆘</div>
+                <h3>Support Premium</h3>
+                <div class="price">19,90 € <small>/ mois</small></div>
+                <p class="desc">
+                    Assistance prioritaire 7j/7 avec un technicien dédié.
+                </p>
+                <ul>
+                    <li>Réponse sous 30 minutes</li>
+                    <li>Technicien référent</li>
+                    <li>Visite à domicile incluse (2x/an)</li>
+                </ul>
+                <button class="btn" data-action="add">➕ Ajouter</button>
+            </div>
+        </section>
+
+        <!-- ===== PANIER ===== -->
+        <section class="cart-section" id="cartSection">
+            <h2>🛒 Votre sélection</h2>
+
+            <!-- Barre de progression -->
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-label">
+                    <span>Progression vers la livraison gratuite (150€)</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+
+            <div class="cart-items" id="cartItems">
+                <div class="empty-message">Aucun service sélectionné pour l'instant.</div>
+            </div>
+
+            <!-- Économies -->
+            <div class="savings-box" id="savingsBox">
+                <p>🎉 Économies réalisées : <span id="savingsAmount">0,00 €</span> (remise étudiante)</p>
+            </div>
+
+            <div class="cart-total">
+                <span>Sous-total</span>
+                <span id="cartSubtotal">0,00 €</span>
+            </div>
+            <div class="cart-total" style="border-top: none; padding-top: 0; font-size: 1.1rem; color: #64748b;">
+                <span>Réduction (-10%)</span>
+                <span id="cartDiscount">-0,00 €</span>
+            </div>
+            <div class="cart-total" style="border-top: 2px solid #2563eb; font-size: 1.5rem;">
+                <span>Total TTC</span>
+                <span id="cartTotal">0,00 €</span>
+            </div>
+
+            <div class="cart-actions">
+                <button class="btn btn-secondary" id="emptyCartBtn">🗑️ Vider le panier</button>
+                <button class="btn btn-success" id="checkoutBtn">✅ Passer la commande</button>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ===== TOAST ===== -->
+    <div class="toast" id="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
