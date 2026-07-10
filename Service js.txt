@@ -1,0 +1,614 @@
+/**
+ * =============================================
+ * GESTION DES SERVICES - PANIER DYNAMIQUE
+ * Projet : Vente, Installation & Maintenance Scolaire
+ * =============================================
+ */
+
+(function() {
+    'use strict';
+
+    // =============================================
+    // 1. CONFIGURATION
+    // =============================================
+    const CONFIG = {
+        STUDENT_DISCOUNT: 0.10,        // 10% de réduction
+        FREE_DELIVERY_THRESHOLD: 150,   // Livraison gratuite à partir de 150€
+        TOAST_DURATION: 3000,           // Durée d'affichage des notifications (ms)
+        TAX_RATE: 0.20,                 // TVA 20%
+        CURRENCY: '€'
+    };
+
+    // =============================================
+    // 2. ÉTAT DU PANIER
+    // =============================================
+    let cart = [];
+
+    // =============================================
+    // 3. RÉFÉRENCES DOM
+    // =============================================
+    const DOM = {
+        cartItems: document.getElementById('cartItems'),
+        cartTotal: document.getElementById('cartTotal'),
+        cartSubtotal: document.getElementById('cartSubtotal'),
+        cartDiscount: document.getElementById('cartDiscount'),
+        cartTax: document.getElementById('cartTax'),
+        cartCount: document.getElementById('cartCount'),
+        emptyCartBtn: document.getElementById('emptyCartBtn'),
+        checkoutBtn: document.getElementById('checkoutBtn'),
+        toast: document.getElementById('toast'),
+        progressFill: document.getElementById('progressFill'),
+        progressPercent: document.getElementById('progressPercent'),
+        savingsBox: document.getElementById('savingsBox'),
+        savingsAmount: document.getElementById('savingsAmount'),
+        deliveryInfo: document.getElementById('deliveryInfo')
+    };
+
+    // =============================================
+    // 4. SYSTÈME DE NOTIFICATION (TOAST)
+    // =============================================
+    let toastTimeout = null;
+
+    /**
+     * Affiche une notification temporaire
+     * @param {string} message - Le message à afficher
+     * @param {string} type - Le type de notification (success, error, info, warning)
+     */
+    function showToast(message, type = 'info') {
+        const colors = {
+            success: '#16a34a',
+            error: '#dc2626',
+            info: '#2563eb',
+            warning: '#f59e0b'
+        };
+
+        const icons = {
+            success: '✅',
+            error: '❌',
+            info: 'ℹ️',
+            warning: '⚠️'
+        };
+
+        DOM.toast.style.background = colors[type] || '#0f172a';
+        DOM.toast.innerHTML = `${icons[type] || ''} ${message}`;
+        DOM.toast.classList.add('show');
+
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            DOM.toast.classList.remove('show');
+        }, CONFIG.TOAST_DURATION);
+    }
+
+    // =============================================
+    // 5. CALCUL DES TOTAUX
+    // =============================================
+    /**
+     * Calcule les différents totaux du panier
+     * @returns {Object} { subtotal, discount, taxable, tax, total }
+     */
+    function calculateTotals() {
+        // Calcul du sous-total (somme des prix × quantités)
+        let subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        // Application de la réduction étudiante
+        let discount = 0;
+        if (subtotal > 0) {
+            discount = subtotal * CONFIG.STUDENT_DISCOUNT;
+        }
+
+        // Calcul de la TVA (sur le montant après réduction)
+        const taxable = subtotal - discount;
+        const tax = taxable * CONFIG.TAX_RATE;
+        const total = taxable + tax;
+
+        return {
+            subtotal: subtotal,
+            discount: discount,
+            taxable: taxable,
+            tax: tax,
+            total: total
+        };
+    }
+
+    // =============================================
+    // 6. RENDU DU PANIER
+    // =============================================
+    function renderCart() {
+        // Vider le conteneur
+        DOM.cartItems.innerHTML = '';
+
+        // Si panier vide
+        if (cart.length === 0) {
+            DOM.cartItems.innerHTML = `
+                <div class="empty-cart">
+                    <div class="empty-icon">🛒</div>
+                    <p>Votre panier est vide</p>
+                    <p class="empty-sub">Découvrez nos services ci-dessus</p>
+                </div>
+            `;
+            updateTotalsDisplay(0, 0, 0, 0);
+            DOM.cartCount.textContent = '0';
+            DOM.progressFill.style.width = '0%';
+            DOM.progressPercent.textContent = '0%';
+            DOM.savingsBox.classList.remove('show');
+            DOM.deliveryInfo.textContent = 'Ajoutez des services pour bénéficier de la livraison gratuite';
+            DOM.deliveryInfo.style.color = '#64748b';
+            return;
+        }
+
+        // Afficher chaque article
+        let totalItems = 0;
+        cart.forEach((item, index) => {
+            totalItems += item.quantity;
+            const itemTotal = item.price * item.quantity;
+
+            const div = document.createElement('div');
+            div.className = 'cart-item';
+            div.dataset.index = index;
+            div.innerHTML = `
+                <div class="item-info">
+                    <div class="item-icon">${getIconForService(item.id)}</div>
+                    <div>
+                        <strong>${item.name}</strong>
+                        <span class="item-price">${item.price.toFixed(2)} ${CONFIG.CURRENCY}</span>
+                    </div>
+                </div>
+                <div class="item-controls">
+                    <div class="qty-controls">
+                        <button class="qty-minus" data-index="${index}" aria-label="Diminuer la quantité">−</button>
+                        <span class="qty-number">${item.quantity}</span>
+                        <button class="qty-plus" data-index="${index}" aria-label="Augmenter la quantité">+</button>
+                    </div>
+                    <span class="item-total">${itemTotal.toFixed(2)} ${CONFIG.CURRENCY}</span>
+                    <button class="remove-btn" data-index="${index}" aria-label="Retirer du panier">✕</button>
+                </div>
+            `;
+            DOM.cartItems.appendChild(div);
+        });
+
+        // Calcul des totaux
+        const totals = calculateTotals();
+
+        // Mise à jour des affichages
+        updateTotalsDisplay(
+            totals.subtotal,
+            totals.discount,
+            totals.tax,
+            totals.total
+        );
+
+        // Mise à jour du compteur
+        DOM.cartCount.textContent = totalItems;
+
+        // Barre de progression
+        updateProgressBar(totals.subtotal);
+
+        // Économies
+        updateSavingsDisplay(totals.discount);
+
+        // Livraison
+        updateDeliveryInfo(totals.subtotal);
+
+        // Ajouter les événements sur les contrôles de quantité
+        attachQuantityEvents();
+
+        // Ajouter les événements sur les boutons de suppression
+        attachRemoveEvents();
+    }
+
+    // =============================================
+    // 7. FONCTIONS D'AFFICHAGE
+    // =============================================
+
+    /**
+     * Met à jour l'affichage des totaux
+     */
+    function updateTotalsDisplay(subtotal, discount, tax, total) {
+        DOM.cartSubtotal.textContent = subtotal.toFixed(2).replace('.', ',') + ` ${CONFIG.CURRENCY}`;
+        DOM.cartDiscount.textContent = '-' + discount.toFixed(2).replace('.', ',') + ` ${CONFIG.CURRENCY}`;
+        DOM.cartTax.textContent = tax.toFixed(2).replace('.', ',') + ` ${CONFIG.CURRENCY}`;
+        DOM.cartTotal.textContent = total.toFixed(2).replace('.', ',') + ` ${CONFIG.CURRENCY}`;
+    }
+
+    /**
+     * Met à jour la barre de progression
+     */
+    function updateProgressBar(subtotal) {
+        const progress = Math.min((subtotal / CONFIG.FREE_DELIVERY_THRESHOLD) * 100, 100);
+        DOM.progressFill.style.width = progress + '%';
+        DOM.progressPercent.textContent = Math.round(progress) + '%';
+    }
+
+    /**
+     * Met à jour l'affichage des économies
+     */
+    function updateSavingsDisplay(discount) {
+        if (discount > 0) {
+            DOM.savingsBox.classList.add('show');
+            DOM.savingsAmount.textContent = discount.toFixed(2).replace('.', ',') + ` ${CONFIG.CURRENCY}`;
+        } else {
+            DOM.savingsBox.classList.remove('show');
+        }
+    }
+
+    /**
+     * Met à jour l'information de livraison
+     */
+    function updateDeliveryInfo(subtotal) {
+        const remaining = CONFIG.FREE_DELIVERY_THRESHOLD - subtotal;
+        if (remaining > 0) {
+            DOM.deliveryInfo.innerHTML = `
+                🚚 Plus que <strong>${remaining.toFixed(2).replace('.', ',')} ${CONFIG.CURRENCY}</strong> 
+                pour bénéficier de la livraison gratuite
+            `;
+            DOM.deliveryInfo.style.color = '#f59e0b';
+        } else {
+            DOM.deliveryInfo.innerHTML = '🎉 Livraison gratuite offerte !';
+            DOM.deliveryInfo.style.color = '#16a34a';
+        }
+    }
+
+    /**
+     * Retourne l'icône associée à un service
+     */
+    function getIconForService(serviceId) {
+        const icons = {
+            'install': '💻',
+            'maintenance': '⚡',
+            'packgold': '⭐',
+            'support': '🆘'
+        };
+        return icons[serviceId] || '📦';
+    }
+
+    // =============================================
+    // 8. GESTION DES ÉVÉNEMENTS
+    // =============================================
+
+    /**
+     * Attache les événements sur les boutons de quantité
+     */
+    function attachQuantityEvents() {
+        document.querySelectorAll('.qty-plus').forEach(btn => {
+            btn.removeEventListener('click', handleQuantityPlus);
+            btn.addEventListener('click', handleQuantityPlus);
+        });
+
+        document.querySelectorAll('.qty-minus').forEach(btn => {
+            btn.removeEventListener('click', handleQuantityMinus);
+            btn.addEventListener('click', handleQuantityMinus);
+        });
+    }
+
+    /**
+     * Attache les événements sur les boutons de suppression
+     */
+    function attachRemoveEvents() {
+        document.querySelectorAll('.remove-btn').forEach(btn => {
+            btn.removeEventListener('click', handleRemove);
+            btn.addEventListener('click', handleRemove);
+        });
+    }
+
+    /**
+     * Gestionnaire : Augmenter la quantité
+     */
+    function handleQuantityPlus(e) {
+        const index = parseInt(this.dataset.index, 10);
+        updateQuantity(index, 1);
+    }
+
+    /**
+     * Gestionnaire : Diminuer la quantité
+     */
+    function handleQuantityMinus(e) {
+        const index = parseInt(this.dataset.index, 10);
+        updateQuantity(index, -1);
+    }
+
+    /**
+     * Gestionnaire : Supprimer un article
+     */
+    function handleRemove(e) {
+        const index = parseInt(this.dataset.index, 10);
+        removeFromCart(index);
+    }
+
+    // =============================================
+    // 9. FONCTIONS PRINCIPALES DU PANIER
+    // =============================================
+
+    /**
+     * Ajoute un service au panier
+     * @param {string} id - Identifiant du service
+     * @param {string} name - Nom du service
+     * @param {number} price - Prix du service
+     */
+    function addToCart(id, name, price) {
+        // Vérifier si le service existe déjà
+        const existing = cart.find(item => item.id === id);
+
+        if (existing) {
+            // Incrémenter la quantité
+            existing.quantity += 1;
+            showToast(`📦 "${name}" × ${existing.quantity}`, 'success');
+        } else {
+            // Ajouter nouveau service
+            cart.push({ id, name, price, quantity: 1 });
+            showToast(`✅ "${name}" ajouté au panier !`, 'success');
+        }
+
+        // Sauvegarder dans le localStorage
+        saveCart();
+
+        // Re-rendre le panier
+        renderCart();
+
+        // Animation du bouton
+        animateAddButton(id);
+    }
+
+    /**
+     * Met à jour la quantité d'un article
+     * @param {number} index - Index de l'article dans le panier
+     * @param {number} delta - Changement de quantité (+1 ou -1)
+     */
+    function updateQuantity(index, delta) {
+        if (index < 0 || index >= cart.length) return;
+
+        const item = cart[index];
+        const newQuantity = item.quantity + delta;
+
+        if (newQuantity <= 0) {
+            removeFromCart(index);
+            return;
+        }
+
+        item.quantity = newQuantity;
+
+        // Sauvegarder
+        saveCart();
+
+        // Re-rendre
+        renderCart();
+
+        // Notification
+        if (delta > 0) {
+            showToast(`📦 "${item.name}" : ${newQuantity}`, 'info');
+        }
+    }
+
+    /**
+     * Retire un article du panier
+     * @param {number} index - Index de l'article dans le panier
+     */
+    function removeFromCart(index) {
+        if (index < 0 || index >= cart.length) return;
+
+        const removed = cart[index];
+        cart.splice(index, 1);
+
+        // Sauvegarder
+        saveCart();
+
+        // Re-rendre
+        renderCart();
+
+        showToast(`🗑️ "${removed.name}" retiré du panier`, 'warning');
+    }
+
+    /**
+     * Vide complètement le panier
+     */
+    function emptyCart() {
+        if (cart.length === 0) {
+            showToast('ℹ️ Le panier est déjà vide', 'info');
+            return;
+        }
+
+        cart = [];
+
+        // Sauvegarder
+        saveCart();
+
+        // Re-rendre
+        renderCart();
+
+        showToast('🗑️ Panier vidé', 'warning');
+    }
+
+    /**
+     * Valide la commande (simulation)
+     */
+    function checkout() {
+        if (cart.length === 0) {
+            showToast('❌ Votre panier est vide. Ajoutez des services !', 'error');
+            return;
+        }
+
+        const totals = calculateTotals();
+
+        // Construction du résumé
+        let summary = '📋 Récapitulatif de la commande\n';
+        summary += '═'.repeat(30) + '\n';
+
+        cart.forEach(item => {
+            summary += `  ${item.name} (×${item.quantity})\n`;
+            summary += `    ${(item.price * item.quantity).toFixed(2)} ${CONFIG.CURRENCY}\n`;
+        });
+
+        summary += '═'.repeat(30) + '\n';
+        summary += `  Sous-total : ${totals.subtotal.toFixed(2)} ${CONFIG.CURRENCY}\n`;
+
+        if (totals.discount > 0) {
+            summary += `  Réduction (-10%) : -${totals.discount.toFixed(2)} ${CONFIG.CURRENCY}\n`;
+        }
+
+        summary += `  TVA (20%) : ${totals.tax.toFixed(2)} ${CONFIG.CURRENCY}\n`;
+        summary += `  TOTAL : ${totals.total.toFixed(2)} ${CONFIG.CURRENCY}\n`;
+        summary += '═'.repeat(30);
+
+        // Affichage
+        showToast(`✅ Commande validée ! Total : ${totals.total.toFixed(2)} ${CONFIG.CURRENCY}`, 'success');
+
+        // Simulation d'envoi au serveur
+        console.log('📦 COMMANDE VALIDÉE :');
+        console.log('  - Articles :', cart);
+        console.log('  - Totaux :', totals);
+
+        // Option : redirection vers la page de paiement
+        // window.location.href = 'paiement.php';
+    }
+
+    // =============================================
+    // 10. ANIMATIONS & INTERACTIONS
+    // =============================================
+
+    /**
+     * Anime le bouton "Ajouter" pour feedback visuel
+     */
+    function animateAddButton(serviceId) {
+        const card = document.querySelector(`.service-card[data-id="${serviceId}"]`);
+        if (!card) return;
+
+        const btn = card.querySelector('.btn[data-action="add"]');
+        if (!btn) return;
+
+        // Sauvegarder le texte original
+        const originalText = btn.textContent;
+        const originalBg = btn.style.background;
+
+        // Modifier le bouton
+        btn.textContent = '✅ Ajouté !';
+        btn.classList.add('btn-added');
+        btn.style.background = '#16a34a';
+
+        // Restaurer après 1.5 secondes
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('btn-added');
+            btn.style.background = originalBg || '';
+        }, 1500);
+    }
+
+    // =============================================
+    // 11. SAUVEGARDE LOCALE (localStorage)
+    // =============================================
+
+    /**
+     * Sauvegarde le panier dans le localStorage
+     */
+    function saveCart() {
+        try {
+            localStorage.setItem('edu_cart', JSON.stringify(cart));
+        } catch (e) {
+            console.warn('Impossible de sauvegarder le panier :', e);
+        }
+    }
+
+    /**
+     * Charge le panier depuis le localStorage
+     */
+    function loadCart() {
+        try {
+            const saved = localStorage.getItem('edu_cart');
+            if (saved) {
+                cart = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.warn('Impossible de charger le panier :', e);
+            cart = [];
+        }
+    }
+
+    // =============================================
+    // 12. CONFIGURATION DES BOUTONS "AJOUTER"
+    // =============================================
+
+    function setupAddButtons() {
+        document.querySelectorAll('[data-action="add"]').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const card = this.closest('.service-card');
+                if (!card) return;
+
+                const id = card.dataset.id;
+                const name = card.dataset.name;
+                const price = parseFloat(card.dataset.price);
+
+                if (!id || !name || isNaN(price)) {
+                    showToast('⚠️ Erreur : données du service invalides', 'error');
+                    return;
+                }
+
+                addToCart(id, name, price);
+            });
+        });
+    }
+
+    // =============================================
+    // 13. INITIALISATION
+    // =============================================
+
+    function init() {
+        // Charger le panier sauvegardé
+        loadCart();
+
+        // Configurer les boutons "Ajouter"
+        setupAddButtons();
+
+        // Configurer les boutons d'action
+        DOM.emptyCartBtn.addEventListener('click', emptyCart);
+        DOM.checkoutBtn.addEventListener('click', checkout);
+
+        // Raccourci clavier : Ctrl+C pour vider le panier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                emptyCart();
+            }
+        });
+
+        // Raccourci clavier : Ctrl+Shift+C pour la console
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'c' && e.shiftKey && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                console.log('📊 État du panier :', cart);
+                console.log('📊 Totaux :', calculateTotals());
+            }
+        });
+
+        // Rendre le panier
+        renderCart();
+
+        console.log('🚀 Services Scolaires - Application démarrée');
+        console.log(`📦 ${cart.length} articles dans le panier`);
+    }
+
+    // =============================================
+    // 14. DÉMARRAGE
+    // =============================================
+
+    // Attendre que le DOM soit chargé
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+    // =============================================
+    // 15. EXPORT (pour compatibilité avec d'autres modules)
+    // =============================================
+
+    // Exposer certaines fonctions globalement (si nécessaire)
+    window.EduCart = {
+        add: addToCart,
+        remove: removeFromCart,
+        empty: emptyCart,
+        checkout: checkout,
+        getCart: () => cart,
+        getTotals: calculateTotals,
+        save: saveCart,
+        load: loadCart
+    };
+
+})();
